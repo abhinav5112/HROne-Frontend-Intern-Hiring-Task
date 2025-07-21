@@ -1,0 +1,129 @@
+import React from 'react';
+import { useForm, useFieldArray, Controller } from 'react-hook-form';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Textarea } from '@/components/ui/textarea';
+
+const defaultField = () => ({ name: '', type: 'string', fields: [] });
+
+const renderJSON = (fields) => {
+  const json = {};
+  fields.forEach((field) => {
+    if (field.type === 'nested') {
+      json[field.name || 'key'] = renderJSON(field.fields);
+    } else {
+      json[field.name || 'key'] = field.type === 'string' ? 'default' : 0;
+    }
+  });
+  return json;
+};
+
+const SchemaField = ({ nestIndex, control, register, setValue, getValues }) => {
+  const { fields, append, remove } = useFieldArray({
+    control,
+    name: `fields.${nestIndex}.fields`,
+  });
+
+  return (
+    <div className="pl-4 border-l-2 space-y-4">
+      {fields.map((field, index) => (
+        <Card key={field.id} className="p-4">
+          <div className="flex gap-2 items-center">
+            <Input placeholder="Field name" {...register(`fields.${nestIndex}.fields.${index}.name`)} />
+            <Controller
+              control={control}
+              name={`fields.${nestIndex}.fields.${index}.type`}
+              render={({ field }) => (
+                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <SelectTrigger className="w-[120px]">
+                    <SelectValue placeholder="Type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="string">String</SelectItem>
+                    <SelectItem value="number">Number</SelectItem>
+                    <SelectItem value="nested">Nested</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
+            />
+            <Button variant="destructive" onClick={() => remove(index)}>Delete</Button>
+          </div>
+          {getValues(`fields.${nestIndex}.fields.${index}.type`) === 'nested' && (
+            <SchemaField
+              nestIndex={`${nestIndex}.fields.${index}`}
+              control={control}
+              register={register}
+              setValue={setValue}
+              getValues={getValues}
+            />
+          )}
+        </Card>
+      ))}
+      <Button onClick={() => append(defaultField())}>Add Field</Button>
+    </div>
+  );
+};
+
+export default function JSONSchemaBuilder() {
+  const { control, register, watch, setValue, getValues } = useForm({
+    defaultValues: {
+      fields: [],
+    },
+  });
+  const { fields, append, remove } = useFieldArray({ control, name: 'fields' });
+
+  const json = renderJSON(watch('fields'));
+
+  return (
+    <Tabs defaultValue="builder" className="w-full max-w-5xl mx-auto mt-10">
+      <TabsList>
+        <TabsTrigger value="builder">Schema Builder</TabsTrigger>
+        <TabsTrigger value="json">JSON Preview</TabsTrigger>
+      </TabsList>
+      <TabsContent value="builder">
+        <div className="space-y-4">
+          {fields.map((field, index) => (
+            <Card key={field.id} className="p-4">
+              <div className="flex gap-2 items-center">
+                <Input placeholder="Field name" {...register(`fields.${index}.name`)} />
+                <Controller
+                  control={control}
+                  name={`fields.${index}.type`}
+                  render={({ field }) => (
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <SelectTrigger className="w-[120px]">
+                        <SelectValue placeholder="Type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="string">String</SelectItem>
+                        <SelectItem value="number">Number</SelectItem>
+                        <SelectItem value="nested">Nested</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+                <Button variant="destructive" onClick={() => remove(index)}>Delete</Button>
+              </div>
+              {getValues(`fields.${index}.type`) === 'nested' && (
+                <SchemaField
+                  nestIndex={index}
+                  control={control}
+                  register={register}
+                  setValue={setValue}
+                  getValues={getValues}
+                />
+              )}
+            </Card>
+          ))}
+          <Button onClick={() => append(defaultField())}>Add Field</Button>
+        </div>
+      </TabsContent>
+      <TabsContent value="json">
+        <Textarea value={JSON.stringify(json, null, 2)} rows={20} readOnly className="w-full" />
+      </TabsContent>
+    </Tabs>
+  );
+}
